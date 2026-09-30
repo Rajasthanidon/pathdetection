@@ -21,7 +21,7 @@ export default function App() {
     let reconnectTimeout = null;
     let isMounted = true;
     let reconnectAttempts = 0;
-    const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8001/ws';
+    const WS_URL = import.meta.env.VITE_WS_URL || (import.meta.env.PROD ? 'wss://pathdetection.onrender.com/ws' : 'ws://127.0.0.1:8001/ws');
 
     const connect = () => {
       if (!isMounted) return;
