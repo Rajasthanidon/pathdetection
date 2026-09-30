@@ -40,3 +40,28 @@ The platform simulates an autonomous ego vehicle navigating complex, unstructure
 
 ## Architecture & Limitations
 Please see the `docs/` folder for `ARCHITECTURE.md`, `LIMITATIONS.md`, and `RESULTS.md`.
+
+## Deployment Instructions
+
+### Backend (Render)
+1. **Root Directory**: `backend`
+2. **Runtime**: Python 3
+3. **Build Command**: `pip install -r requirements.txt`
+4. **Start Command**: `python main.py`
+5. **Environment Variables**:
+   - `PORT`: Automatically set by Render.
+   - `FRONTEND_ORIGINS`: e.g. `https://your-frontend-app.vercel.app`
+6. **Health Check Path**: `/health`
+
+The backend handles connections natively at `wss://<your-render-domain>/ws`.
+A `render.yaml` file is provided in `backend/` for Infrastructure-as-Code deployment.
+
+### Frontend (Vercel)
+1. **Root Directory**: `frontend`
+2. **Framework Preset**: Vite
+3. **Build Command**: `npm run build`
+4. **Output Directory**: `dist`
+5. **Environment Variables**:
+   - `VITE_WS_URL`: Set this to `wss://<your-render-domain>/ws` (e.g., `wss://my-backend.onrender.com/ws`).
+
+Once deployed, the frontend will automatically connect to the backend simulation securely. Ensure you update `FRONTEND_ORIGINS` on Render with your Vercel URL.

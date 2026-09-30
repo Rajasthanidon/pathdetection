@@ -1,14 +1,16 @@
 import asyncio
 import json
 import websockets
+import http
+import math
+import os
+import traceback
 from simulation.engine import SimulationEngine
 from simulation.config import Config
 
 engine = SimulationEngine()
 clients = set()
 speed_multiplier = 1.0
-
-import math
 
 def sanitize_for_json(obj):
     if isinstance(obj, float):
@@ -23,6 +25,7 @@ def sanitize_for_json(obj):
 
 async def simulation_loop():
     print("Simulation loop started!")
+    global speed_multiplier
     while True:
         try:
             if engine.running:
@@ -35,25 +38,22 @@ async def simulation_loop():
                     msg = json.dumps({"type": "STATE", "data": safe_state}, allow_nan=False)
                 except Exception as json_e:
                     print(f"JSON SERIALIZATION ERROR\ntype: {type(json_e)}\nvalue: {json_e}")
-                    # Don't send, but continue loop
                     msg = None
                     
                 if msg:
                     for client in list(clients):
                         try:
                             await client.send(msg)
-                        except Exception as e:
+                        except Exception:
                             pass
         except Exception as e:
             print(f"Error in simulation loop: {e}")
-            import traceback
             traceback.print_exc()
                 
-        # Sleep according to speed multiplier (if 0.5x -> sleep longer)
         sleep_time = Config.DT / speed_multiplier if speed_multiplier > 0 else Config.DT
         await asyncio.sleep(sleep_time)
 
-async def handler(websocket):
+async def handler(websocket, path):
     global speed_multiplier
     clients.add(websocket)
     try:
@@ -88,16 +88,33 @@ async def handler(websocket):
                 speed_multiplier = data["speed"]
     except websockets.exceptions.ConnectionClosed:
         pass
+    except Exception as e:
+        print(f"WebSocket exception: {e}")
     finally:
-        clients.remove(websocket)
+        if websocket in clients:
+            clients.remove(websocket)
+
+async def process_request(path, request_headers):
+    if path == "/health":
+        body = json.dumps({"status": "ok", "service": "autonomous-india-road"}).encode("utf-8")
+        headers = [
+            ("Content-Type", "application/json"),
+            ("Access-Control-Allow-Origin", "*"),
+        ]
+        return http.HTTPStatus.OK, headers, body
+    if path != "/ws":
+        return http.HTTPStatus.NOT_FOUND, [], b"Not found"
+    return None
 
 async def main():
-    # Start the simulation loop in the background
     asyncio.create_task(simulation_loop())
-    # Start the WebSocket server
-    print("Starting WebSocket server on ws://127.0.0.1:8001")
-    async with websockets.serve(handler, "127.0.0.1", 8001):
-        await asyncio.Future()  # run forever
+    
+    port = int(os.environ.get("PORT", 8001))
+    print(f"Starting WebSocket server on ws://0.0.0.0:{port}/ws")
+    
+    # process_request handles HTTP /health, handler handles WS /ws
+    async with websockets.serve(handler, "0.0.0.0", port, process_request=process_request):
+        await asyncio.Future()
 
 if __name__ == "__main__":
     asyncio.run(main())

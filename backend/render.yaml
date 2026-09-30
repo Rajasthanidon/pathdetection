@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: autonomous-india-road
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: FRONTEND_ORIGINS
+        value: http://localhost:5173,https://your-app.vercel.app

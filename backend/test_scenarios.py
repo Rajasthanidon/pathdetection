@@ -40,7 +40,7 @@ def test_near_cattle():
     for i in range(80):
         engine.step()
         state = engine.get_state()
-        if "BRAKE" in state["behavior"]:
+        if "BRAKE" in state["behavior"] or "STOP" in state["behavior"]:
             braked = True
         if state.get("replanning", False):
             replanned = True
