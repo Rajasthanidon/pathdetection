@@ -115,8 +115,12 @@ middleware = [
     Middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 ]
 
+async def root_endpoint(request):
+    return JSONResponse({"service": "PathDetection Backend", "status": "ok"})
+
 app = Starlette(
     routes=[
+        Route("/", root_endpoint),
         Route("/health", health_check),
         WebSocketRoute("/ws", websocket_endpoint)
     ],

@@ -8,4 +8,4 @@ services:
       - key: PYTHON_VERSION
         value: 3.10.12
       - key: FRONTEND_ORIGINS
-        value: http://localhost:5173,https://your-app.vercel.app
+        value: http://localhost:5173,https://pathdetection.vercel.app
