@@ -1,10 +1,15 @@
 import asyncio
 import json
-import websockets
-import http
 import math
 import os
 import traceback
+from starlette.applications import Starlette
+from starlette.routing import Route, WebSocketRoute
+from starlette.responses import JSONResponse
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
 from simulation.engine import SimulationEngine
 from simulation.config import Config
 
@@ -43,7 +48,7 @@ async def simulation_loop():
                 if msg:
                     for client in list(clients):
                         try:
-                            await client.send(msg)
+                            await client.send_text(msg)
                         except Exception:
                             pass
         except Exception as e:
@@ -53,20 +58,25 @@ async def simulation_loop():
         sleep_time = Config.DT / speed_multiplier if speed_multiplier > 0 else Config.DT
         await asyncio.sleep(sleep_time)
 
-async def handler(websocket, path):
+async def health_check(request):
+    return JSONResponse({"status": "ok", "service": "autonomous-india-road"})
+
+async def websocket_endpoint(websocket):
     global speed_multiplier
+    await websocket.accept()
     clients.add(websocket)
     try:
-        async for message in websocket:
-            data = json.loads(message)
+        while True:
+            data_str = await websocket.receive_text()
+            data = json.loads(data_str)
             if data["type"] == "HELLO":
-                await websocket.send(json.dumps({
+                await websocket.send_text(json.dumps({
                     "type": "READY", 
                     "server": "autonomous-india-road", 
                     "protocol": 1
                 }))
                 safe_state = sanitize_for_json(engine.get_state())
-                await websocket.send(json.dumps({"type": "STATE", "data": safe_state}, allow_nan=False))
+                await websocket.send_text(json.dumps({"type": "STATE", "data": safe_state}, allow_nan=False))
             elif data["type"] == "START":
                 if engine.status in ["COMPLETED", "ERROR"]:
                     engine.reset()
@@ -78,43 +88,43 @@ async def handler(websocket, path):
             elif data["type"] == "RESET":
                 engine.reset()
                 safe_state = sanitize_for_json(engine.get_state())
-                await websocket.send(json.dumps({"type": "STATE", "data": safe_state}, allow_nan=False))
+                await websocket.send_text(json.dumps({"type": "STATE", "data": safe_state}, allow_nan=False))
             elif data["type"] == "SET_SCENARIO":
                 engine.scenario_id = data["scenario_id"]
                 engine.reset()
                 safe_state = sanitize_for_json(engine.get_state())
-                await websocket.send(json.dumps({"type": "STATE", "data": safe_state}, allow_nan=False))
+                await websocket.send_text(json.dumps({"type": "STATE", "data": safe_state}, allow_nan=False))
             elif data["type"] == "SET_SPEED":
                 speed_multiplier = data["speed"]
-    except websockets.exceptions.ConnectionClosed:
-        pass
     except Exception as e:
-        print(f"WebSocket exception: {e}")
+        pass
     finally:
         if websocket in clients:
             clients.remove(websocket)
 
-async def process_request(path, request_headers):
-    if path == "/health":
-        body = json.dumps({"status": "ok", "service": "autonomous-india-road"}).encode("utf-8")
-        headers = [
-            ("Content-Type", "application/json"),
-            ("Access-Control-Allow-Origin", "*"),
-        ]
-        return http.HTTPStatus.OK, headers, body
-    if path != "/ws":
-        return http.HTTPStatus.NOT_FOUND, [], b"Not found"
-    return None
+@asynccontextmanager
+async def lifespan(app):
+    task = asyncio.create_task(simulation_loop())
+    yield
+    task.cancel()
 
-async def main():
-    asyncio.create_task(simulation_loop())
-    
-    port = int(os.environ.get("PORT", 8001))
-    print(f"Starting WebSocket server on ws://0.0.0.0:{port}/ws")
-    
-    # process_request handles HTTP /health, handler handles WS /ws
-    async with websockets.serve(handler, "0.0.0.0", port, process_request=process_request):
-        await asyncio.Future()
+frontend_origins = os.environ.get("FRONTEND_ORIGINS", "http://localhost:5173")
+origins = [origin.strip() for origin in frontend_origins.split(",") if origin.strip()]
+
+middleware = [
+    Middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+]
+
+app = Starlette(
+    routes=[
+        Route("/health", health_check),
+        WebSocketRoute("/ws", websocket_endpoint)
+    ],
+    middleware=middleware,
+    lifespan=lifespan
+)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import uvicorn
+    port = int(os.environ.get("PORT", 8001))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
