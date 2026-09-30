@@ -6,9 +6,9 @@ class Config:
     VEHICLE_LENGTH = 4.5
     VEHICLE_WIDTH = 1.8
     WHEELBASE = 2.8
-    MAX_STEER = 0.6  # radians
-    MAX_STEER_RATE = 0.25 # radians per second (limits steering jump)
-    MAX_ACCEL = 3.0  # m/s^2
+    MAX_STEER = 0.8  # radians
+    MAX_STEER_RATE = 1.5 # radians per second (allows quick avoidance)
+    MAX_ACCEL = 4.0  # m/s^2
     MAX_DECEL = -5.0 # m/s^2 (emergency brake)
     MAX_SPEED = 20.0 # m/s (approx 72 km/h)
     

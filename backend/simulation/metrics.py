@@ -12,8 +12,13 @@ class MetricsEngine:
         self.last_pos = None
 
     def update(self, ego, risk, plan_time, collision, state):
-        if collision:
+        if not hasattr(self, 'in_collision'):
+            self.in_collision = False
+            
+        if collision and not self.in_collision:
             self.collisions += 1
+            
+        self.in_collision = collision
             
         if risk["min_clearance"] < 1.0 and risk["min_clearance"] >= 0:
             self.near_collisions += 1

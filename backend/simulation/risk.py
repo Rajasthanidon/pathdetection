@@ -20,7 +20,19 @@ class RiskEngine:
             
             is_vru = t.get("cls") in ["Pedestrian", "Animal", "ScriptedAnimal", "Bicycle"]
             
-            clearance = dist - (ego.length/2 + t["length"]/2)
+            # AABB-based clearance approximation
+            dx_abs = abs(dx)
+            dy_abs = abs(dy)
+            clearance_x = dx_abs - (ego.length/2.0 + t["length"]/2.0)
+            clearance_y = dy_abs - (ego.width/2.0 + t["width"]/2.0)
+            
+            # If both are negative, we are overlapping. The clearance is the max of the two overlaps.
+            # If at least one is positive, that's the clearance distance in that axis.
+            if clearance_x > 0 and clearance_y > 0:
+                clearance = math.hypot(clearance_x, clearance_y)
+            else:
+                clearance = max(clearance_x, clearance_y)
+                
             if clearance < min_clearance:
                 min_clearance = clearance
                 
@@ -53,8 +65,15 @@ class RiskEngine:
                     else:
                         tx, ty = t["x"], t["y"]
                     
-                    dist = math.hypot(px - tx, py - ty)
-                    clr = dist - (Config.VEHICLE_WIDTH/2 + t["width"]/2)
+                    dx_c = abs(px - tx)
+                    dy_c = abs(py - ty)
+                    cx = dx_c - (Config.VEHICLE_LENGTH/2.0 + t["length"]/2.0)
+                    cy = dy_c - (Config.VEHICLE_WIDTH/2.0 + t["width"]/2.0)
+                    if cx > 0 and cy > 0:
+                        clr = math.hypot(cx, cy)
+                    else:
+                        clr = max(cx, cy)
+                        
                     if clr < counterfactual_clearance:
                         counterfactual_clearance = clr
                     if clr < 0.2:

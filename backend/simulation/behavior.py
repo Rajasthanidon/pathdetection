@@ -6,22 +6,14 @@ class BehaviorPlanner:
         self.dwell_time = 0.0
         self.last_state = "CRUISE"
 
-    def decide(self, ego, risk, has_path):
-        target_speed = Config.MAX_SPEED
-        desired_state = "CRUISE"
+    def decide(self, ego, risk, path, intent, target_speed):
+        desired_state = intent
         
-        if risk["critical"]:
+        # If RiskEngine detects critical imminent collision that the planner didn't avoid
+        # (e.g. obstacle suddenly appears out of nowhere)
+        if risk["critical"] and not path:
             desired_state = "EMERGENCY_STOP"
             target_speed = 0.0
-        elif not has_path:
-            desired_state = "BRAKE"
-            target_speed = 0.0
-        elif risk["risk_level"] == "HIGH":
-            desired_state = "AVOID RIGHT" if hasattr(self, 'last_candidate_idx') and self.last_candidate_idx > Config.LATERAL_SAMPLES//2 else "AVOID LEFT"
-            target_speed = ego.speed * 0.8
-        elif risk["risk_level"] == "CAUTION":
-            desired_state = "FOLLOW"
-            target_speed = ego.speed * 0.5
             
         # Hysteresis / Dwell logic: Do not downgrade from EMERGENCY_STOP instantly
         if self.state == "EMERGENCY_STOP" and desired_state != "EMERGENCY_STOP":

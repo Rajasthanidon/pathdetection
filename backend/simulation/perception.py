@@ -45,6 +45,8 @@ class PerceptionSystem:
             current_ids.add(tid)
             if tid not in self.tracks:
                 obs["age"] = 1
+                # Start with lower confidence for new tracks
+                obs["confidence"] = max(0.2, min(0.45, obs["confidence"] - 0.4))
                 self.tracks[tid] = obs
             else:
                 alpha = 0.6 # Gain
@@ -54,13 +56,28 @@ class PerceptionSystem:
                 self.tracks[tid]["heading"] = obs["heading"]
                 self.tracks[tid]["dist"] = obs["dist"]
                 self.tracks[tid]["source"] = obs["source"]
-                self.tracks[tid]["confidence"] = obs["confidence"]
+                
+                # Gradual confidence build-up (learn over time)
+                target_conf = obs["confidence"]
+                curr_conf = self.tracks[tid]["confidence"]
+                self.tracks[tid]["confidence"] = curr_conf + 0.1 * (target_conf - curr_conf)
+                
                 self.tracks[tid]["age"] += 1
 
-        # Remove old tracks
+        # Remove old tracks (with a small persistence memory so they don't despawn instantly if missed for 1 frame)
         for tid in list(self.tracks.keys()):
             if tid not in current_ids:
-                del self.tracks[tid]
+                if "missed_frames" not in self.tracks[tid]:
+                    self.tracks[tid]["missed_frames"] = 0
+                self.tracks[tid]["missed_frames"] += 1
+                
+                # Decay confidence if missed
+                self.tracks[tid]["confidence"] -= 0.1
+                
+                if self.tracks[tid]["missed_frames"] > 5 or self.tracks[tid]["confidence"] < 0.1:
+                    del self.tracks[tid]
+            else:
+                self.tracks[tid]["missed_frames"] = 0
                 
         return list(self.tracks.values())
 
